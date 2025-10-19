@@ -32,7 +32,14 @@ export interface MessageHandler {
 }
 
 /**
- * This defers all functionality to either MessageHandler's or the ServerContext objects.
+ * `BasicFDC3Server` is the hub that glues messaging transports to handler modules.
+ *
+ * Every inbound Web Connection Protocol message is fanned out to the registered {@link MessageHandler}s. Each handler owns
+ * a slice of behaviour (broadcast, intents, open, heartbeat) and decides whether it can process the message. Keeping the
+ * server thin ensures new message types can be added by dropping in another handler without touching the core routing logic.
+ *
+ * Shared cross-session state is stored in the {@link ServerContext}; the server simply coordinates cleanup and shutdown so that
+ * disconnected app instances do not leak listeners or pending promises.
  */
 export class BasicFDC3Server implements FDC3Server {
   readonly handlers: MessageHandler[];
@@ -52,6 +59,9 @@ export class BasicFDC3Server implements FDC3Server {
     message: AppRequestMessage | WebConnectionProtocol4ValidateAppIdentity | WebConnectionProtocol6Goodbye,
     from: InstanceID
   ): Promise<void> {
+    // Handlers run in parallel to avoid blocking discovery of slow operations. We intentionally ignore rejections here because
+    // each handler reports protocol errors through the context (e.g. `errorResponse`). Collecting with `allSettled` prevents one
+    // failure from starving unrelated operations.
     const promises = this.handlers.map(h => h.accept(message, this.sc, from));
     await Promise.allSettled(promises);
   }
