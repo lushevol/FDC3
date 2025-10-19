@@ -73,7 +73,14 @@ function initAgentPromise(options: GetAgentParams): Promise<DesktopAgent> {
 
   const promises = strategies.map(s =>
     s.get(options).then(async selection => {
-      //cancel other strategies if we selected a DA
+      // When a strategy finds a desktop agent we need to stop every other strategy
+      // that is still probing for connectivity.  We iterate twice: first with a
+      // classic for-loop so the cancellation awaits in sequence (this avoids
+      // dangling rejection noise in the console) and then with forEach to cover
+      // any strategy instances that are added in the future while keeping the
+      // cancellation fire-and-forget.  This double pass looks redundant at a
+      // glance, but documents the intentional mix of awaited and non-awaited
+      // cleanup to keep discovery responsive and predictable.
       Logger.debug(`Strategy ${s.name} resolved - cleaning up other strategies`);
       for (let s2 = 0; s2 < strategies.length; s2++) {
         if (strategies[s2] !== s) {
@@ -138,6 +145,11 @@ function initAgentPromise(options: GetAgentParams): Promise<DesktopAgent> {
           //  However there is an argument to be made for hanging out in case the
           //  function eventually returns, e.g. after an external DA started up
 
+          // FailoverHandler encapsulates the same handshake logic as the
+          // discovery strategies but delegates to the user-provided fallback.
+          // Keeping the implementation in one place ensures that session
+          // persistence, logging and agent metadata remain consistent even when
+          // an app needs to spin up its own proxy or adaptor.
           const failoverHandler = new FailoverHandler(options);
           const selection = await failoverHandler.handleFailover();
 
