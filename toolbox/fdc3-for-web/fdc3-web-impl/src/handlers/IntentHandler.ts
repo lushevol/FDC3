@@ -123,6 +123,17 @@ class PendingIntent {
   }
 }
 
+/**
+ * The intent handler coordinates every phase of the intent lifecycle for the web demo agent:
+ *
+ * 1. Resolver queries (`findIntent*`) are answered synchronously using directory metadata, optionally narrowed via
+ *    {@link ServerContext.narrowIntents} so container-specific rules can filter candidates.
+ * 2. Raised intents are either forwarded immediately to registered listeners or held as {@link PendingIntent}s while the
+ *    target app boots. Pending intents time out using the negotiated handshake deadline to match the behaviour expected by the
+ *    FDC3 standard.
+ * 3. Intent results are correlated by UUID through `pendingResolutions`, ensuring that `IntentResolution.getResult()` resolves
+ *    exactly once even when multiple events race.
+ */
 export class IntentHandler implements MessageHandler {
   private readonly directory: Directory;
   private registrations: ListenerRegistration[] = [];

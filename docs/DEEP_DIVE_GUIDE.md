@@ -63,6 +63,72 @@ The monorepo is organized into npm workspaces. Each workspace either ships core 
 | `toolbox/fdc3-conformance` | Conformance test suite with cucumber/vitest scenarios. | `npm run dev` (serves UI and harness) |
 | `packages/testing` | Shared testing utilities (intent resolver mock, channel helpers) used by automated suites. | `src/intentResolver`, `src/channels` |
 
+### Detailed Package Reference
+
+The tables above are a quick map. Use the notes below when you want to understand how responsibilities are sliced inside each
+workspace and where to place new functionality.
+
+#### `packages/fdc3-standard`
+- **`src/api`** contains the canonical TypeScript interfaces that every agent and app must implement; start with `DesktopAgent.ts`
+  and `Channels.ts` to see the surface area promised by the standard.
+- **`src/context`** defines the primitives that context objects extend from. Concrete context shapes live in the `fdc3-context`
+  package, but the base types (like `ContextType`) are centralised here.
+- **`src/intents`** lists the standard intent catalogue. When proposing new intents, this is the place to add them along with
+  update proposals to the published spec.
+- **`src/errors`** and **`src/events`** enumerate error codes and event payloads that ensure cross-agent consistency.
+
+#### `packages/fdc3-context`
+- **`schemas/context`** is the authoritative JSON Schema collection; each file names a context type (`fdc3.instrument`,
+  `fdc3.contact`, etc.).
+- **`src/generated`** is produced from the schemas during `npm run build`. Do not edit generated files manually—change a schema
+  and rebuild instead.
+- **`src/guards`** offers runtime type guards you can reuse when validating context payloads in apps or tests.
+
+#### `packages/fdc3-schema`
+- **`src/browser`** models the Web Connection Protocol (WCP) request/response structures exchanged between apps and agents.
+- **`src/bridge`** models the Desktop Agent Bridging protocol used when bridging native agents together.
+- **`src/common`** contains utilities shared by both browser and bridge message formats (enums, helper types, etc.).
+
+#### `packages/fdc3-get-agent`
+- **`src/strategies`** hosts discovery strategies (preload, postMessage, failover) and their orchestration via `getAgent.ts`.
+- **`src/sessionStorage`** persists `DesktopAgentDetails` so reconnects reuse the same transport when possible.
+- **`src/ui`** embeds optional intent resolver and channel selector widgets; review `AbstractUIComponent` for the handshake logic
+  used by both.
+- **`src/util`** provides logging helpers and shared constants.
+
+#### `packages/fdc3-agent-proxy`
+- **`src/DesktopAgentProxy.ts`** aggregates support modules and presents them as the standard `DesktopAgent` interface. This is
+  where you instrument cross-cutting behaviour such as logging or lifecycle management.
+- **`src/apps`, `src/channels`, `src/intents`, `src/heartbeat`** each implement one facet of the FDC3 API against the underlying
+  messaging transport.
+- **`src/messaging`** defines the transport adapters (MessagePort, BroadcastChannel, custom) that ferry WCP messages.
+- **`src/listeners`** supplies listener abstractions that normalise subscribe/unsubscribe semantics across transports.
+
+#### `packages/fdc3`
+- Acts as the umbrella npm package. `src/index.ts` re-exports types from `fdc3-standard`, `fdc3-context`, and the helper
+  `getAgent` API so applications can `import '@finos/fdc3'` without thinking about internal workspace boundaries.
+- The workspace also carries package metadata (README, CHANGELOG) synced with the published distribution.
+
+#### `packages/testing`
+- **`src/intentResolver`** exposes a simple intent resolution UI mock used by tests and sample agents.
+- **`src/channels`** offers fake channel implementations you can reuse in integration tests.
+- **`src/utils`** holds cucumber step helpers and shared fixtures that underpin the conformance suite.
+
+#### Toolbox projects
+- **`toolbox/fdc3-for-web/fdc3-web-impl`** implements a browser-based desktop agent. Start with `BasicFDC3Server.ts` to see how
+  incoming messages are routed to handlers, then explore the `handlers` folder for per-command logic and `ServerContext.ts` for
+  shared state.
+- **`toolbox/fdc3-for-web/reference-ui`** provides the intent resolver/channel selector UI embedded by `fdc3-get-agent` when a
+  desktop agent delegates UX responsibilities back to the application.
+- **`toolbox/fdc3-for-web/demo`** exposes sample applications and a thin desktop agent wrapper that exercises intents, channels,
+  and context broadcasting.
+- **`toolbox/fdc3-workbench`** is a manual testing environment. Inspect `src/features` for the React components and utilities
+  that drive the UI.
+- **`toolbox/fdc3-conformance`** hosts the conformance harness and cucumber specs. `src/features` describes desired behaviours
+  while `src/steps` implements the glue code.
+
+Use this map alongside the walkthrough below when stepping through call flows in a debugger.
+
 ---
 
 ## 4. Guided Code Walkthrough

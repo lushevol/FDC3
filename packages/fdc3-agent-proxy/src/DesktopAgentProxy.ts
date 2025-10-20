@@ -20,8 +20,17 @@ import { HeartbeatSupport } from './heartbeat/HeartbeatSupport';
 import { Logger } from './util/Logger';
 
 /**
- * This splits out the functionality of the desktop agent into
- * app, channels and intents concerns.
+ * `DesktopAgentProxy` composes the specialised support modules into the public FDC3 `DesktopAgent` surface.
+ *
+ * The proxy itself does not perform business logic; instead it delegates to:
+ *   - {@link AppSupport} for app directory lookups, instance tracking, and lifecycle operations such as `open`.
+ *   - {@link ChannelSupport} for user/system/default channel orchestration and listener management.
+ *   - {@link IntentSupport} for resolver queries, routing raised intents to targets, and intent listener plumbing.
+ *   - {@link HeartbeatSupport} for optional liveness tracking negotiated during the WCP handshake.
+ *
+ * By centralising the bindings here we gain a single place to normalise logging, enforce API contracts, and ensure
+ * the support modules always receive a consistent `this` context even when consumers destructure methods (a common
+ * pattern in JavaScript apps).
  */
 export class DesktopAgentProxy implements DesktopAgent, Connectable {
   readonly heartbeat: HeartbeatSupport;
@@ -48,7 +57,8 @@ export class DesktopAgentProxy implements DesktopAgent, Connectable {
       Logger.setLogLevel(logLevel);
     }
 
-    //bind all functions to allow destructuring
+    // Bind all public methods once during construction. Without these bindings, apps that destructure
+    // (e.g. `const { broadcast } = await getAgent();`) would lose the original context and trigger runtime errors.
     this.addEventListener = this.addEventListener.bind(this);
     this.getInfo = this.getInfo.bind(this);
     this.broadcast = this.broadcast.bind(this);
